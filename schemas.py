@@ -12,7 +12,9 @@ class UserCreate(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: str
-
+    class config:
+        orm_mode = True
+        
 class StatementCreate(BaseModel):
     user_id: int
     filename: str

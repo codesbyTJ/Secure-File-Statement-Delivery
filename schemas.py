@@ -12,7 +12,9 @@ class UserCreate(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: str
-
+    class config:
+        orm_mode = True
+        
 class StatementCreate(BaseModel):
     user_id: int
     filename: str
@@ -27,3 +29,7 @@ class DownloadToken(BaseModel):
     token: str
     statement_id: int
     expiration: datetime
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str

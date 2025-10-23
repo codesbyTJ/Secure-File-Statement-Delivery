@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from app.routers import auth, downloads
-from app.db import Base, engine
+from db import Base, engine
+from routers import auth, downloads
 
 app = FastAPI(title="Secure File Statement Delivery API")
 

@@ -29,3 +29,7 @@ class DownloadToken(BaseModel):
     token: str
     statement_id: int
     expiration: datetime
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str

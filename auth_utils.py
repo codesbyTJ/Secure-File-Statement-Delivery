@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone 
 from jose import jwt, JWTError
 
-SECRET_KEY="12345"
+SECRET_KEY="12345" #change this to a secure random key in production
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 

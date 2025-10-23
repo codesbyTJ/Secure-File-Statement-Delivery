@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from db import Base, engine
-from routers import auth, downloads
+from routers import auth, downloads, web
 
 app = FastAPI(title="Secure File Statement Delivery API")
 
@@ -12,6 +12,7 @@ def startup():
 # Register routers
 app.include_router(downloads.router, prefix="/statements", tags=["Downloads"])
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(web.router)  # <-- add web UI router
 
 @app.get("/")
 async def root():

@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Statements</title>
+    <style>
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      /* simple modal */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0; top: 0; right:0; bottom:0;
+        background: rgba(0,0,0,0.5);
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.open { display: flex; }
+      .modal-content {
+        background: #fff;
+        padding: 1rem 1.25rem;
+        border-radius: 6px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+      }
+      .token-box {
+        font-family: monospace;
+        background:#f6f6f6;
+        padding:0.5rem;
+        border-radius:4px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome {{ email if email else "guest" }}:</h1>
+
+    <section>
+      <h2>Download statement</h2>
+      <form id="token-form">
+        <label>Statement ID: <input type="number" name="statement_id" id="statement_id" required></label>
+        <button id="get-btn" type="submit">Get Download Token</button>
+      </form>
+
+      <p id="status" style="color:red"></p>
+
+      <div id="download-area" style="display:none; margin-top:1rem;">
+        <p>Token expires in <span id="countdown">--:--</span></p>
+        <a id="download-link" href="#" download>
+          <button id="download-btn" type="button">Download Statement</button>
+        </a>
+      </div>
+    </section>
+
+    <p><a href="/logout">Logout</a></p>
+
+    <!-- Modal shown once per generated token -->
+    <div id="token-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-content">
+        <h3 id="modal-title">This is your statement download token</h3>
+        <p>Copy this token and paste it where needed, or use the download button behind the page.</p>
+        <div class="token-box" id="modal-token">...</div>
+        <div style="margin-top:.75rem; display:flex; gap:.5rem;">
+          <button id="copy-token-btn" type="button">Copy token</button>
+          <a id="modal-download-link" href="#" download><button type="button">Open download link</button></a>
+          <button id="close-modal-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById('token-form');
+      const status = document.getElementById('status');
+      const downloadArea = document.getElementById('download-area');
+      const downloadLink = document.getElementById('download-link');
+      const downloadBtn = document.getElementById('download-btn');
+      const countdownEl = document.getElementById('countdown');
+
+      const modal = document.getElementById('token-modal');
+      const modalTokenEl = document.getElementById('modal-token');
+      const copyBtn = document.getElementById('copy-token-btn');
+      const modalDownloadLink = document.getElementById('modal-download-link');
+      const closeModalBtn = document.getElementById('close-modal-btn');
+
+      let expireTimer = null;
+
+      function startCountdown(expirationIso) {
+        clearInterval(expireTimer);
+        function update() {
+          const now = Date.now();
+          const exp = new Date(expirationIso).getTime();
+          let diff = Math.max(0, exp - now);
+          if (diff <= 0) {
+            countdownEl.textContent = "00:00";
+            downloadBtn.disabled = true;
+            downloadLink.removeAttribute('href');
+            modalDownloadLink.removeAttribute('href');
+            clearInterval(expireTimer);
+            return;
+          }
+          const secs = Math.floor(diff / 1000);
+          const hours = Math.floor(secs / 3600);
+          const mins = Math.floor((secs % 3600) / 60);
+          const s = secs % 60;
+          countdownEl.textContent = (hours > 0 ? String(hours).padStart(2,'0')+':' : '') +
+                                    String(mins).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        }
+        update();
+        expireTimer = setInterval(update, 1000);
+      }
+
+      function showModalWithToken(token, downloadUrl) {
+        modalTokenEl.textContent = token;
+        modalDownloadLink.setAttribute('href', downloadUrl);
+        // show modal
+        modal.classList.add('open');
+        // one-time focus
+        copyBtn.focus();
+        // clicking outside closes modal
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); }, { once: true });
+      }
+
+      function closeModal() {
+        modal.classList.remove('open');
+      }
+
+      copyBtn.addEventListener('click', async () => {
+        const txt = modalTokenEl.textContent || '';
+        if (!txt) return;
+        try {
+          await navigator.clipboard.writeText(txt);
+          copyBtn.textContent = 'Copied';
+          setTimeout(()=> copyBtn.textContent = 'Copy token', 2000);
+        } catch (err) {
+          // fallback: select text for manual copy
+          const range = document.createRange();
+          range.selectNodeContents(modalTokenEl);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          copyBtn.textContent = 'Selected - press Ctrl+C';
+        }
+      });
+
+      closeModalBtn.addEventListener('click', closeModal);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        status.textContent = '';
+        downloadArea.style.display = 'none';
+        downloadBtn.disabled = true;
+        const fd = new FormData(form);
+        try {
+          const res = await fetch('/statements/generate-download-json', {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin'
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(()=>({error:'Server error'}));
+            status.textContent = err.detail || err.error || 'Failed to generate token';
+            return;
+          }
+          const data = await res.json();
+          const token = data.token;
+          const expiration = data.expiration;
+          const url = `/statements/download-statement/?token=${encodeURIComponent(token)}`;
+          downloadLink.setAttribute('href', url);
+          downloadArea.style.display = 'block';
+          downloadBtn.disabled = false;
+          startCountdown(expiration);
+
+          // show modal once with raw token + download link
+          showModalWithToken(token, url);
+        } catch (err) {
+          status.textContent = 'Network error';
+        }
+      });
+
+      // when user clicks download button, open the link (anchor has href)
+      downloadBtn.addEventListener('click', () => downloadLink.click());
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+__pychache__/
+*.__pyc__ 
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+venv/
+.git
+.gitignore
+__init__.py
